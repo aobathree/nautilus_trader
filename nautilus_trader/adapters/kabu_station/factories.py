@@ -5,7 +5,6 @@ from nautilus_trader.adapters.kabu_station.config import (
     KabuStationExecClientConfig,
     _base_url,
     resolve_api_password,
-    resolve_order_password,
 )
 from nautilus_trader.adapters.kabu_station.data import KabuStationDataClient
 from nautilus_trader.adapters.kabu_station.execution import KabuStationExecutionClient
@@ -59,7 +58,6 @@ class KabuStationLiveExecClientFactory(LiveExecClientFactory):
     ) -> KabuStationExecutionClient:
         client = KabuStationHttpClient(
             api_password=resolve_api_password(config),
-            order_password=resolve_order_password(config),
             base_url=_base_url(config.environment),
         )
         return KabuStationExecutionClient(

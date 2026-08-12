@@ -39,7 +39,6 @@ class KabuStationHttpClient:
     def __init__(
         self,
         api_password: str,
-        order_password: str | None = None,  # 発注/取消用の注文パスワード (別秘密)
         base_url: str = "http://localhost:18081/kabusapi",
         allow_remote: bool = False,
         timeout_secs: float = 30.0,
@@ -52,7 +51,6 @@ class KabuStationHttpClient:
         if not allow_remote and host not in ("localhost", "127.0.0.1", "::1"):
             raise ValueError(f"Remote base_url refused: {base_url} (set allow_remote=True)")
         self._api_password = api_password
-        self._order_password = order_password
         self._token: str | None = None
         self._token_lock = asyncio.Lock()
         self._order_gate = RateGate(5)
@@ -123,25 +121,13 @@ class KabuStationHttpClient:
 
     # --- endpoints ---
 
-    def _require_order_password(self) -> str:
-        if not self._order_password:
-            raise KabuStationApiError(
-                -1,
-                "order password not configured (set env var KABU_STATION_ORDER_PASSWORD)",
-            )
-        return self._order_password
-
     async def send_order(self, payload: dict) -> str:
-        payload = {"Password": self._require_order_password(), **payload}
+        # OpenAPI v1.5: /sendorder に Password フィールドは存在しない (旧仕様で廃止)
         result = await self.request("POST", "/sendorder", json=payload)
         return str(result["OrderId"])
 
     async def cancel_order(self, order_id: str) -> None:
-        await self.request(
-            "PUT",
-            "/cancelorder",
-            json={"OrderId": order_id, "Password": self._require_order_password()},
-        )
+        await self.request("PUT", "/cancelorder", json={"OrderId": order_id})
 
     async def get_orders(self, updtime: str | None = None) -> list:
         params: dict = {"product": 0, "details": "true"}

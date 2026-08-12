@@ -10,7 +10,7 @@ BASE = "http://localhost:18081/kabusapi"
 
 
 def make_client(**kw) -> KabuStationHttpClient:
-    return KabuStationHttpClient(api_password="apipw", order_password="orderpw", **kw)
+    return KabuStationHttpClient(api_password="apipw", **kw)
 
 
 @pytest.mark.asyncio
@@ -82,7 +82,7 @@ async def test_http_200_with_nonzero_result_raises():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_sendorder_injects_order_password():
+async def test_sendorder_returns_order_id_without_password_field():
     respx.post(f"{BASE}/token").mock(return_value=httpx.Response(200, json={"Token": "t"}))
     send = respx.post(f"{BASE}/sendorder").mock(
         return_value=httpx.Response(200, json={"Result": 0, "OrderId": "OID1"}),
@@ -93,16 +93,25 @@ async def test_sendorder_injects_order_password():
     import json
 
     body = json.loads(send.calls[0].request.content)
-    assert body["Password"] == "orderpw"
+    assert "Password" not in body  # OpenAPI v1.5: Password フィールドは存在しない
     await client.aclose()
 
 
-@pytest.mark.asyncio
-async def test_missing_order_password_raises():
-    client = KabuStationHttpClient(api_password="apipw")
-    with pytest.raises(KabuStationApiError, match="order password"):
-        await client.send_order({"Symbol": "7203"})
-    await client.aclose()
+def test_env_specific_api_password_resolution(monkeypatch):
+    from types import SimpleNamespace
+
+    from nautilus_trader.adapters.kabu_station.config import resolve_api_password
+
+    monkeypatch.setenv("KABU_STATION_API_PASSWORD_PRACTICE", "pw-test")
+    monkeypatch.setenv("KABU_STATION_API_PASSWORD_PRODUCTION", "pw-live")
+    cfg = SimpleNamespace(api_password=None, environment="practice")
+    assert resolve_api_password(cfg) == "pw-test"
+    cfg = SimpleNamespace(api_password=None, environment="production")
+    assert resolve_api_password(cfg) == "pw-live"
+    # フォールバック
+    monkeypatch.delenv("KABU_STATION_API_PASSWORD_PRODUCTION")
+    monkeypatch.setenv("KABU_STATION_API_PASSWORD", "pw-common")
+    assert resolve_api_password(cfg) == "pw-common"
 
 
 def test_remote_base_url_refused():

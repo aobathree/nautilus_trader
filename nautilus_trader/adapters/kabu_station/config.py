@@ -16,7 +16,6 @@ class KabuStationDataClientConfig(LiveDataClientConfig, frozen=True):
 
 class KabuStationExecClientConfig(LiveExecClientConfig, frozen=True):
     api_password: str | None = None
-    order_password: str | None = None  # None -> env KABU_STATION_ORDER_PASSWORD
     environment: str = "practice"
     trading_enabled: bool = False  # 明示 True にしない限り発注拒否 (誤発注ガード)
     use_margin: bool = False
@@ -27,16 +26,22 @@ class KabuStationExecClientConfig(LiveExecClientConfig, frozen=True):
 
 
 def resolve_api_password(config) -> str:
-    pw = getattr(config, "api_password", None) or os.environ.get("KABU_STATION_API_PASSWORD", "")
+    """
+    API パスワードは kabu STATION の「APIシステム設定」で本番用・検証用が
+    別々に発行される。config.environment に対応する環境変数を優先し、
+    共通の KABU_STATION_API_PASSWORD にフォールバックする。
+    """
+    if getattr(config, "api_password", None):
+        return config.api_password
+    env = getattr(config, "environment", "practice")
+    suffix = "PRODUCTION" if env == "production" else "PRACTICE"
+    pw = os.environ.get(f"KABU_STATION_API_PASSWORD_{suffix}") or os.environ.get(
+        "KABU_STATION_API_PASSWORD",
+        "",
+    )
     if not pw:
         raise RuntimeError(
-            "KABU_STATION_API_PASSWORD is not set. "
+            f"KABU_STATION_API_PASSWORD_{suffix} (or KABU_STATION_API_PASSWORD) is not set. "
             "Run via: op run --env-file=.env.1password -- <command>",
         )
     return pw
-
-
-def resolve_order_password(config) -> str | None:
-    return getattr(config, "order_password", None) or os.environ.get(
-        "KABU_STATION_ORDER_PASSWORD",
-    )

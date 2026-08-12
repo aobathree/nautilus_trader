@@ -23,8 +23,12 @@ async def main() -> int:
     port = 18080 if args.production else 18081
     env = "production" if args.production else "practice"
 
+    from types import SimpleNamespace
+
+    from nautilus_trader.adapters.kabu_station.config import resolve_api_password
+
     client = KabuStationHttpClient(
-        api_password=os.environ["KABU_STATION_API_PASSWORD"],
+        api_password=resolve_api_password(SimpleNamespace(api_password=None, environment=env)),
         base_url=f"http://localhost:{port}/kabusapi",
     )
     print(f"[1/5] token ({env}) ...")
